@@ -2,8 +2,9 @@ import csv
 import random
 import time
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 import statistics
+from transformations import process_array
 
 def write_list_to_csv(data: List[int], filename: str) -> None:
     """
@@ -94,19 +95,19 @@ def generate_random_numbers_numpy(n: int, a: int, b: int, even_only: bool = True
     """
     
     if even_only:
-        
+        # Генерируем четные числа
         start = a if a % 2 == 0 else a + 1
         all_numbers = np.arange(start, b + 1, 2)
     else:
-        
+        # Генерируем нечетные числа
         start = a if a % 2 != 0 else a + 1
         all_numbers = np.arange(start, b + 1, 2)
     
-    
+    # Проверяем, достаточно ли чисел
     if len(all_numbers) < n:
         raise ValueError(f"Недостаточно {'четных' if even_only else 'нечетных'} чисел в диапазоне")
     
-    
+    # Выбираем n уникальных чисел
     selected = np.random.choice(all_numbers, size=n, replace=False)
     return selected.tolist()
 
@@ -143,7 +144,7 @@ def measure_execution_time_precise(func, *args, runs: int = 10) -> Tuple[List[in
     avg_time = statistics.mean(times) if times else 0.0
     return result, avg_time
 
-def run_comparison_test(n: int, a: int, b: int, even_only: bool = True) -> Tuple[float, float, float]:
+def run_comparison_test(n: int, a: int, b: int, even_only: bool = True) -> Tuple[float, float, float, List[int], List[int], List[int]]:
     """
     Запускает тест сравнения производительности всех трех методов.
     
@@ -154,7 +155,7 @@ def run_comparison_test(n: int, a: int, b: int, even_only: bool = True) -> Tuple
         even_only: True для четных чисел, False для нечетных
     
     Returns:
-        Кортеж времен выполнения (time_list, time_set, time_numpy)
+        Кортеж (time_list, time_set, time_numpy, result_list, result_set, result_numpy)
     """
     print(f"\nТест для n={n}, диапазон ({a}, {b}), {'четные' if even_only else 'нечетные'} числа:")
     
@@ -163,33 +164,36 @@ def run_comparison_test(n: int, a: int, b: int, even_only: bool = True) -> Tuple
     print(f"Количество прогонов для усреднения: {runs}")
     
     # Тест с list
+    time_list = float('inf')
+    result_list = []
     try:
         result_list, time_list = measure_execution_time_precise(generate_random_numbers_list, n, a, b, even_only, runs=runs)
         print(f"List метод: {time_list:.6f} секунд (среднее)")
         write_list_to_csv(result_list, f"random_numbers_list_{n}.csv")
     except Exception as e:
         print(f"List метод: Ошибка - {e}")
-        time_list = float('inf')
     
     # Тест с set
+    time_set = float('inf')
+    result_set = []
     try:
         result_set, time_set = measure_execution_time_precise(generate_random_numbers_set, n, a, b, even_only, runs=runs)
         print(f"Set метод: {time_set:.6f} секунд (среднее)")
         write_list_to_csv(result_set, f"random_numbers_set_{n}.csv")
     except Exception as e:
         print(f"Set метод: Ошибка - {e}")
-        time_set = float('inf')
     
     # Тест с numpy
+    time_numpy = float('inf')
+    result_numpy = []
     try:
         result_numpy, time_numpy = measure_execution_time_precise(generate_random_numbers_numpy, n, a, b, even_only, runs=runs)
         print(f"NumPy метод: {time_numpy:.6f} секунд (среднее)")
         write_list_to_csv(result_numpy, f"random_numbers_numpy_{n}.csv")
     except Exception as e:
         print(f"NumPy метод: Ошибка - {e}")
-        time_numpy = float('inf')
     
-    return time_list, time_set, time_numpy
+    return time_list, time_set, time_numpy, result_list, result_set, result_numpy
 
 def write_performance_report(results: List[Tuple[int, Tuple[float, float, float]]], even_only: bool) -> None:
     """
@@ -200,10 +204,10 @@ def write_performance_report(results: List[Tuple[int, Tuple[float, float, float]
         even_only: Флаг четных/нечетных чисел
     """
     with open("performance_report.md", "w", encoding="utf-8") as f:
-        f.write(" Отчет о производительности генерации случайных чисел\n\n")
+        f.write("# Отчет о производительности генерации случайных чисел\n\n")
         f.write(f"Тип чисел: {'четные' if even_only else 'нечетные'}\n\n")
         
-        f.write("Результаты тестирования\n\n")
+        f.write("## Результаты тестирования\n\n")
         f.write("| n | List (мкс) | Set (мкс) | NumPy (мкс) | Быстрейший |\n")
         f.write("|---|------------|-----------|-------------|-------------|\n")
         
@@ -224,11 +228,11 @@ def write_performance_report(results: List[Tuple[int, Tuple[float, float, float]
             
             f.write(f"| {n} | {list_str} | {set_str} | {numpy_str} | **{fastest}** |\n")
         
-        f.write("\n Анализ результатов\n\n")
+        f.write("\n## Анализ результатов\n\n")
         
-       
+        # Анализ производительности
         if results:
-            f.write(" Фактическая производительность:\n\n")
+            f.write("### Фактическая производительность:\n\n")
             for n, (time_list, time_set, time_numpy) in results:
                 times = {'List': time_list, 'Set': time_set, 'NumPy': time_numpy}
                 valid_times = {k: v for k, v in times.items() if v != float('inf')}
@@ -246,7 +250,7 @@ def write_performance_report(results: List[Tuple[int, Tuple[float, float, float]
                             f.write(f"  - {slowest} медленнее {fastest} в {ratio:.1f} раз\n")
                 f.write("\n")
         
-        f.write(" Теоретический анализ vs Реальность:\n\n")
+        f.write("### Теоретический анализ vs Реальность:\n\n")
         f.write("1. Для малых n (< 1000):\n")
         f.write("   - NumPy может быть медленнее из-за накладных расходов на инициализацию\n")
         f.write("   - List и Set показывают похожую производительность\n")
@@ -262,10 +266,48 @@ def write_performance_report(results: List[Tuple[int, Tuple[float, float, float]
         f.write("   - Set и NumPy методы значительно опережают List\n")
         f.write("   - NumPy обычно показывает лучшую производительность\n\n")
         
-        f.write("Рекомендации:\n\n")
-        f.write("- n < 100: Используйте любой метод\n")
-        f.write("- 100 ≤ n < 10000: Предпочтительнее Set метод\n")
-        f.write("- n ≥ 10000: Используйте NumPy метод\n")
+        
+
+def process_and_save_results(arr: np.ndarray, n: int) -> None:
+    """
+    Обрабатывает массив всеми преобразованиями и сохраняет результаты.
+    
+    Args:
+        arr: Массив для обработки
+        n: Размер массива (для имени файла)
+    """
+    transformations = [
+        'sigmoid', 'relu', 'tanh', 'softmax',
+        'normalize', 'standardize', 'softplus', 'gaussian'
+    ]
+    
+    results = {}
+    
+    for transformation in transformations:
+        try:
+            sum_val, product_val = process_array(arr, transformation)
+            results[transformation] = (sum_val, product_val)
+            print(f"{transformation}: сумма = {sum_val}, произведение = {product_val}")
+        except Exception as e:
+            print(f"Ошибка при обработке {transformation}: {e}")
+            results[transformation] = (float('nan'), float('nan'))
+    
+    # Сохраняем результаты в файл
+    with open(f"processing_results_{n}.md", "w", encoding="utf-8") as f:
+        f.write("# Результаты обработки массива\n\n")
+        f.write(f"Размер массива: {n} элементов\n")
+        f.write(f"Диапазон значений: [{np.min(arr)}, {np.max(arr)}]\n")
+        f.write(f"Среднее значение: {np.mean(arr):.2f}\n")
+        f.write(f"Стандартное отклонение: {np.std(arr):.2f}\n\n")
+        
+        f.write("## Результаты преобразований\n\n")
+        f.write("| Преобразование | Сумма | Произведение |\n")
+        f.write("|----------------|-------|--------------|\n")
+        
+        for transformation, (sum_val, product_val) in results.items():
+            sum_str = f"{sum_val:.6e}" if abs(sum_val) > 1e6 or abs(sum_val) < 1e-6 else f"{sum_val:.6f}"
+            product_str = f"{product_val:.6e}" if abs(product_val) > 1e6 or abs(product_val) < 1e-6 else f"{product_val:.6f}"
+            f.write(f"| {transformation} | {sum_str} | {product_str} |\n")
 
 def main() -> None:
     """
@@ -288,18 +330,18 @@ def main() -> None:
             first_even = a if a % 2 == 0 else a + 1
             last_even = b if b % 2 == 0 else b - 1
             if first_even <= last_even:
-                available_numbers = (last_even - first_even) // 2 + 1
+                available_numbers = (last_even - first_even) / 2 + 1
             else:
                 available_numbers = 0
         else:
             first_odd = a if a % 2 != 0 else a + 1
             last_odd = b if b % 2 != 0 else b - 1
             if first_odd <= last_odd:
-                available_numbers = (last_odd - first_odd) // 2 + 1
+                available_numbers = (last_odd - first_odd) / 2 + 1
             else:
                 available_numbers = 0
         
-        print(f"В диапазоне [{a}, {b}] доступно {available_numbers} {'четных' if even_only else 'нечетных'} чисел")
+        print(f"В диапазоне [{a}, {b}] доступно {int(available_numbers)} {'четных' if even_only else 'нечетных'} чисел")
         
         if n > available_numbers:
             print(f"\n❌ Ошибка: недостаточно чисел в диапазоне")
@@ -310,16 +352,31 @@ def main() -> None:
         results: List[Tuple[int, Tuple[float, float, float]]] = []
         
         # Основной тест
-        time_results = run_comparison_test(n, a, b, even_only)
-        results.append((n, time_results))
+        time_list, time_set, time_numpy, result_list, result_set, result_numpy = run_comparison_test(n, a, b, even_only)
+        results.append((n, (time_list, time_set, time_numpy)))
+        
+        # Выбираем массив для обработки (предпочтение numpy)
+        if not np.isinf(time_numpy):
+            array_to_process = np.array(result_numpy)
+            print(f"Используем NumPy массив для обработки ({len(array_to_process)} элементов)")
+        elif not np.isinf(time_set):
+            array_to_process = np.array(result_set)
+            print(f"Используем Set массив для обработки ({len(array_to_process)} элементов)")
+        else:
+            array_to_process = np.array(result_list)
+            print(f"Используем List массив для обработки ({len(array_to_process)} элементов)")
+        
+        # Обрабатываем массив
+        process_and_save_results(array_to_process, n)
+        print(f"Результаты обработки сохранены в processing_results_{n}.md")
         
         # Дополнительные тесты для демонстрации разницы
         if available_numbers >= 1000:
             additional_tests = [100, 500, 1000, 5000]
             for test_n in additional_tests:
                 if test_n <= available_numbers and test_n != n:
-                    time_results = run_comparison_test(test_n, a, b, even_only)
-                    results.append((test_n, time_results))
+                    time_list, time_set, time_numpy, _, _, _ = run_comparison_test(test_n, a, b, even_only)
+                    results.append((test_n, (time_list, time_set, time_numpy)))
         
         # Записываем результаты
         write_performance_report(results, even_only)
