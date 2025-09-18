@@ -21,7 +21,7 @@ def f(x: ScalarOrArray, y: ScalarOrArray) -> ScalarOrArray:
     Возвращает:
         float или ndarray: значение функции в точке/точках (x, y).
     """
-    # Используем операции numpy — они корректно работают и для скаляров, и для массивов
+    
     return (x**4) / 4 + x**3 - (13 * x**2) / 2 - 15 * x + \
            (y**4) / 4 - (7 * y**3) / 3 + (7 * y**2) / 2 + 15 * y
 
@@ -104,60 +104,61 @@ def draw_trajectory(trajectory: List[Tuple[float, float]],
     return fig
 
 
+from functools import partial
+
 class GradientDescentApp:
-    """
-    Графическое приложение для визуализации градиентного спуска.
-    """
-
     def __init__(self, root: tk.Tk) -> None:
-        """
-        Инициализация GUI.
-
-        Аргументы:
-            root: главное окно tkinter.
-        """
         self.root = root
         root.title("Метод градиентного спуска")
+        root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        
-        ttk.Label(root, text="Начальная точка X:").grid(row=0, column=0, sticky='w', padx=4, pady=2)
-        ttk.Label(root, text="Начальная точка Y:").grid(row=1, column=0, sticky='w', padx=4, pady=2)
-        ttk.Label(root, text="Скорость обучения:").grid(row=2, column=0, sticky='w', padx=4, pady=2)
-        ttk.Label(root, text="Количество шагов:").grid(row=3, column=0, sticky='w', padx=4, pady=2)
+        # Подписи
+        labels = [
+            "Начальная точка X:",
+            "Начальная точка Y:",
+            "Скорость обучения:",
+            "Количество шагов:"
+        ]
+        tooltips = [
+            "Начальная координата X.\nИзменение этой точки влияет на то, с какой позиции будет начинаться градиентный спуск.",
+            "Начальная координата Y.\nОпределяет стартовую точку по оси Y.",
+            "Скорость обучения (learning rate).\nБольшое значение может ускорить поиск минимума, но сделать его неустойчивым.",
+            "Количество шагов градиентного спуска.\nБольшее количество шагов даст более точную траекторию, но займет больше времени."
+        ]
 
-        
-        self.entry_x = ttk.Entry(root, width=20)
-        self.entry_y = ttk.Entry(root, width=20)
-        self.entry_lr = ttk.Entry(root, width=20)
-        self.entry_steps = ttk.Entry(root, width=20)
+        self.entries = []
+        for i, text in enumerate(labels):
+            ttk.Label(root, text=text).grid(row=i, column=0, sticky='w', padx=4, pady=2)
+            entry = ttk.Entry(root, width=20)
+            entry.grid(row=i, column=1, padx=4, pady=2)
+            self.entries.append(entry)
+            # Кнопка-подсказка
+            info_btn = ttk.Button(root, text="?", width=2,
+                                  command=partial(self.show_tooltip, tooltips[i]))
+            info_btn.grid(row=i, column=2, padx=2)
 
-        
-        self.entry_x.insert(0, "-4")
-        self.entry_y.insert(0, "-4")
-        self.entry_lr.insert(0, "0.01")
-        self.entry_steps.insert(0, "100")
+        # Значения по умолчанию
+        self.entries[0].insert(0, "-4")
+        self.entries[1].insert(0, "-4")
+        self.entries[2].insert(0, "0.01")
+        self.entries[3].insert(0, "100")
 
-        
-        self.entry_x.grid(row=0, column=1, padx=4, pady=2)
-        self.entry_y.grid(row=1, column=1, padx=4, pady=2)
-        self.entry_lr.grid(row=2, column=1, padx=4, pady=2)
-        self.entry_steps.grid(row=3, column=1, padx=4, pady=2)
-
-        
         self.button_run = ttk.Button(root, text="Запустить", command=self.run)
-        self.button_run.grid(row=4, column=0, columnspan=2, pady=8)
+        self.button_run.grid(row=4, column=0, columnspan=3, pady=8)
 
         self.canvas: Union[FigureCanvasTkAgg, None] = None
+        self.current_fig: Union[Figure, None] = None
+
+    def show_tooltip(self, text: str) -> None:
+        """Показать подсказку при нажатии на кнопку."""
+        messagebox.showinfo("Подсказка", text)
 
     def run(self) -> None:
-        """
-        Считать параметры, выполнить градиентный спуск и показать график.
-        """
         try:
-            x0 = float(self.entry_x.get())
-            y0 = float(self.entry_y.get())
-            lr = float(self.entry_lr.get())
-            steps = int(self.entry_steps.get())
+            x0 = float(self.entries[0].get())
+            y0 = float(self.entries[1].get())
+            lr = float(self.entries[2].get())
+            steps = int(self.entries[3].get())
         except ValueError:
             messagebox.showerror("Ошибка ввода", "Параметры должны быть числами")
             return
@@ -165,12 +166,36 @@ class GradientDescentApp:
         trajectory = gradient_descent(x0, y0, learning_rate=lr, steps=steps)
         fig = draw_trajectory(trajectory)
 
-        
         if self.canvas is not None:
-            self.canvas.get_tk_widget().destroy()
+            try:
+                self.canvas.get_tk_widget().destroy()
+            except Exception:
+                pass
+            self.canvas = None
+
+        if self.current_fig is not None:
+            try:
+                plt.close(self.current_fig)
+            except Exception:
+                pass
+            self.current_fig = None
+
+        self.current_fig = fig
         self.canvas = FigureCanvasTkAgg(fig, master=self.root)
         self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=5, column=0, columnspan=2, padx=4, pady=4)
+        self.canvas.get_tk_widget().grid(row=5, column=0, columnspan=3, padx=4, pady=4)
+
+    def on_closing(self) -> None:
+        if messagebox.askokcancel("Выход", "Закрыть приложение?"):
+            if self.canvas is not None:
+                self.canvas.get_tk_widget().destroy()
+                self.canvas = None
+            plt.close('all')
+            try:
+                self.root.destroy()
+            except Exception:
+                import sys
+                sys.exit(0)
 
 
 if __name__ == "__main__":
